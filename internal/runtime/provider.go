@@ -4,8 +4,6 @@
 package runtime
 
 import (
-	"context"
-
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/remote"
 )

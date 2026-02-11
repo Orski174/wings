@@ -8,11 +8,8 @@ import (
 	"emperror.dev/errors"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
-	"github.com/pterodactyl/wings/internal/runtime"
+	"github.com/pterodactyl/wings/remote"
 )
-
-// Ensure KubernetesProvider implements the Provider interface
-var _ runtime.Provider = (*KubernetesProvider)(nil)
 
 // KubernetesProvider is a runtime provider that uses Kubernetes pods.
 type KubernetesProvider struct {
@@ -83,8 +80,8 @@ func (p *KubernetesProvider) IsAvailable() error {
 
 // Metadata defines Kubernetes-specific metadata for servers.
 type Metadata struct {
-	// Embed common metadata
-	runtime.Metadata
+	Image string
+	Stop  remote.ProcessStopConfiguration
 
 	// Additional Kubernetes-specific fields can be added here
 	// For example: NodeSelector, Tolerations, etc.
