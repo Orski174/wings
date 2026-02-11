@@ -1,0 +1,83 @@
+# Kubernetes RBAC Configuration for Pterodactyl Wings
+#
+# This file defines the ServiceAccount, Role, and RoleBinding required for Wings
+# to manage game server Pods, Services, and PersistentVolumeClaims in a specific namespace.
+#
+# Usage:
+#   kubectl apply -f rbac.yaml -n pterodactyl-servers
+#
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: wings-server-manager
+  namespace: pterodactyl-servers
+  labels:
+    app: pterodactyl-wings
+    component: server-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: wings-server-manager
+  namespace: pterodactyl-servers
+  labels:
+    app: pterodactyl-wings
+    component: server-manager
+rules:
+  # Pods - full management for game server containers
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
+  
+  # Pod logs - read access for console output
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  
+  # Pod exec/attach - interactive console access
+  - apiGroups: [""]
+    resources: ["pods/exec", "pods/attach"]
+    verbs: ["create", "get"]
+  
+  # Pod status - monitoring server state
+  - apiGroups: [""]
+    resources: ["pods/status"]
+    verbs: ["get", "list"]
+  
+  # Services - port exposure for game servers
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
+  
+  # PersistentVolumeClaims - storage management
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
+  
+  # ConfigMaps - configuration management (future use)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  
+  # Secrets - sensitive data management (future use)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: wings-server-manager
+  namespace: pterodactyl-servers
+  labels:
+    app: pterodactyl-wings
+    component: server-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: wings-server-manager
+subjects:
+  - kind: ServiceAccount
+    name: wings-server-manager
+    namespace: pterodactyl-servers
