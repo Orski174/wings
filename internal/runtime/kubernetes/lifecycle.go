@@ -14,6 +14,13 @@ import (
 	"github.com/pterodactyl/wings/environment"
 )
 
+const (
+	// Pod startup polling configuration
+	podStartupPollInterval = 1 * time.Second
+	podStartupTimeout      = 60 * time.Second
+	podStartupMaxRetries   = int(podStartupTimeout / podStartupPollInterval)
+)
+
 // Create creates the necessary Kubernetes resources for running the server.
 // This includes creating the PVC, Pod, and Service.
 func (e *Environment) Create() error {
@@ -207,8 +214,8 @@ func (e *Environment) deletePod(ctx context.Context) error {
 func (e *Environment) waitForRunning(ctx context.Context) {
 	e.log().Debug("waiting for pod to be running")
 
-	// Poll pod status
-	for i := 0; i < 60; i++ { // Poll for up to 60 seconds
+	// Poll pod status with configurable timeout
+	for i := 0; i < podStartupMaxRetries; i++ {
 		running, err := e.IsRunning(ctx)
 		if err != nil {
 			e.log().WithError(err).Error("failed to check if pod is running")
@@ -240,7 +247,7 @@ func (e *Environment) waitForRunning(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(1 * time.Second):
+		case <-time.After(podStartupPollInterval):
 		}
 	}
 

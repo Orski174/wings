@@ -224,11 +224,25 @@ func (e *Environment) State() string {
 // the environment.
 func (e *Environment) SetState(state string) {
 	// Validate state
-	if state != environment.ProcessOfflineState &&
-		state != environment.ProcessStartingState &&
-		state != environment.ProcessRunningState &&
-		state != environment.ProcessStoppingState {
-		panic(errors.New(fmt.Sprintf("kubernetes: invalid server state received: %s", state)))
+	validStates := []string{
+		environment.ProcessOfflineState,
+		environment.ProcessStartingState,
+		environment.ProcessRunningState,
+		environment.ProcessStoppingState,
+	}
+	
+	isValid := false
+	for _, validState := range validStates {
+		if state == validState {
+			isValid = true
+			break
+		}
+	}
+	
+	if !isValid {
+		// Log error instead of panicking to prevent service crash
+		e.log().WithField("state", state).Error("kubernetes: invalid server state received, maintaining current state")
+		return
 	}
 
 	// Emit the event to any listeners that are currently registered.
