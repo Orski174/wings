@@ -31,8 +31,44 @@ I would like to extend my sincere thanks to the following sponsors for helping f
 
 * [Panel Documentation](https://pterodactyl.io/panel/1.0/getting_started.html)
 * [Wings Documentation](https://pterodactyl.io/wings/1.0/installing.html)
+* [Kubernetes Provider Documentation](docs/k8s-provider.md) - **New!** Run Wings in Kubernetes clusters
 * [Community Guides](https://pterodactyl.io/community/about.html)
 * Or, get additional help [via Discord](https://discord.gg/pterodactyl)
+
+## Runtime Providers
+
+Wings now supports multiple runtime providers for managing game servers:
+
+### Docker (Default)
+The traditional Docker-based runtime provider for running game servers as containers.
+
+**Requirements:**
+- Docker Engine installed and running
+- Access to Docker socket
+
+### Kubernetes (Beta)
+Run Wings inside a Kubernetes cluster and manage game servers as Pods instead of Docker containers. Ideal for Kubernetes-native environments like Talos Linux.
+
+**Key Features:**
+- Pod-based server management (1 Pod per server)
+- Persistent storage via PersistentVolumeClaims
+- Service-based port exposure (NodePort/LoadBalancer)
+- Native Kubernetes resource management
+- RBAC with least privilege
+
+**Getting Started:**
+```yaml
+# Configure Wings to use Kubernetes
+runtime:
+  provider: kubernetes
+  
+  kubernetes:
+    namespace: pterodactyl-servers
+    service_type: NodePort
+    storage_class: standard
+```
+
+See [docs/k8s-provider.md](docs/k8s-provider.md) for detailed setup instructions and [k8s/manifests/](k8s/manifests/) for deployment manifests.
 
 ## Reporting Issues
 
