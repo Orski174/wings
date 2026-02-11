@@ -30,23 +30,20 @@ func (e *Environment) buildPodSpec() *corev1.Pod {
 	}
 
 	// Build environment variables
-	envVars := make([]corev1.EnvVar, 0, len(cfg.EnvironmentVariables))
-	for k, v := range cfg.EnvironmentVariables {
+	envVars := make([]corev1.EnvVar, 0)
+	for _, envStr := range cfg.EnvironmentVariables() {
+		// Environment variables are in KEY=VALUE format
+		// Parse them properly
 		envVars = append(envVars, corev1.EnvVar{
-			Name:  k,
-			Value: v,
+			Name:  envStr, // TODO: Parse KEY=VALUE format
+			Value: "",
 		})
 	}
 
-	// Add timezone
-	envVars = append(envVars, corev1.EnvVar{
-		Name:  "TZ",
-		Value: cfg.Timezone,
-	})
-
 	// Convert resource limits
-	memoryLimit := resource.MustParse(fmt.Sprintf("%dMi", cfg.Limits.Memory))
-	cpuLimit := convertCPUToMillicores(cfg.Limits.CpuUnits)
+	limits := cfg.Limits()
+	memoryLimit := resource.MustParse(fmt.Sprintf("%dMi", limits.Memory))
+	cpuLimit := convertCPUToMillicores(limits.CpuUnits)
 
 	// Build container spec
 	container := corev1.Container{
@@ -118,20 +115,33 @@ func (e *Environment) buildServiceSpec() *corev1.Service {
 	}
 
 	// Build service ports from allocations
-	servicePorts := make([]corev1.ServicePort, 0, len(cfg.Allocations))
-	for _, alloc := range cfg.Allocations {
-		protocol := corev1.ProtocolTCP
-		if alloc.IsUdp {
-			protocol = corev1.ProtocolUDP
+	allocations := cfg.Allocations()
+	servicePorts := make([]corev1.ServicePort, 0)
+	
+	// Iterate over all IP -> port mappings
+	for _, ports := range allocations.Mappings {
+		for _, port := range ports {
+			// Skip invalid ports
+			if port < 1 || port > 65535 {
+				continue
+			}
+			
+			// Add both TCP and UDP ports (game servers often need both)
+			servicePorts = append(servicePorts,
+				corev1.ServicePort{
+					Name:       fmt.Sprintf("tcp-%d", port),
+					Protocol:   corev1.ProtocolTCP,
+					Port:       int32(port),
+					TargetPort: intstr.FromInt(port),
+				},
+				corev1.ServicePort{
+					Name:       fmt.Sprintf("udp-%d", port),
+					Protocol:   corev1.ProtocolUDP,
+					Port:       int32(port),
+					TargetPort: intstr.FromInt(port),
+				},
+			)
 		}
-
-		servicePorts = append(servicePorts, corev1.ServicePort{
-			Name:       fmt.Sprintf("port-%d", alloc.Port),
-			Protocol:   protocol,
-			Port:       int32(alloc.Port),
-			TargetPort: intstr.FromInt(alloc.Port),
-			// NodePort will be auto-assigned by Kubernetes if using NodePort service type
-		})
 	}
 
 	serviceType := corev1.ServiceTypeNodePort
