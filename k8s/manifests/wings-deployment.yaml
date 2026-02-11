@@ -1,0 +1,196 @@
+# Pterodactyl Wings Deployment for Kubernetes
+#
+# This deployment runs Wings as a Deployment in Kubernetes, allowing it to manage
+# game server Pods, Services, and PVCs in the same cluster.
+#
+# Prerequisites:
+#   1. Apply rbac.yaml first: kubectl apply -f rbac.yaml
+#   2. Create ConfigMap with Wings configuration (see below)
+#   3. Ensure StorageClass exists for PVCs
+#
+# Usage:
+#   kubectl apply -f wings-deployment.yaml -n pterodactyl-servers
+#
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pterodactyl-servers
+  labels:
+    app: pterodactyl-wings
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wings-config
+  namespace: pterodactyl-servers
+  labels:
+    app: pterodactyl-wings
+data:
+  config.yml: |
+    debug: false
+    app_name: Pterodactyl
+    
+    # Panel connection
+    remote: https://panel.example.com
+    token_id: <your-token-id>
+    token: <your-token>
+    
+    # API configuration
+    api:
+      host: 0.0.0.0
+      port: 8080
+      ssl:
+        enabled: false
+      upload_limit: 100
+    
+    # System configuration
+    system:
+      root_directory: /var/lib/pterodactyl
+      log_directory: /var/log/pterodactyl
+      data: /var/lib/pterodactyl/volumes
+      archive_directory: /var/lib/pterodactyl/archives
+      backup_directory: /var/lib/pterodactyl/backups
+      username: pterodactyl
+    
+    # Runtime provider configuration
+    runtime:
+      provider: kubernetes
+      
+      kubernetes:
+        namespace: pterodactyl-servers
+        service_type: NodePort
+        storage_class: standard
+    
+    # Allowed CORS origins
+    allowed_origins: []
+    
+    # Remote query settings
+    remote_query:
+      timeout: 30
+      boot_servers_per_page: 50
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pterodactyl-wings
+  namespace: pterodactyl-servers
+  labels:
+    app: pterodactyl-wings
+    component: controller
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Only one Wings instance should manage servers
+  selector:
+    matchLabels:
+      app: pterodactyl-wings
+      component: controller
+  template:
+    metadata:
+      labels:
+        app: pterodactyl-wings
+        component: controller
+    spec:
+      serviceAccountName: wings-server-manager
+      containers:
+        - name: wings
+          image: ghcr.io/pterodactyl/wings:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: sftp
+              containerPort: 2022
+              protocol: TCP
+          env:
+            # Override runtime provider via environment variable
+            - name: WINGS_RUNTIME_PROVIDER
+              value: "kubernetes"
+            - name: K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: K8S_SERVICE_TYPE
+              value: "NodePort"
+            - name: STORAGE_CLASS
+              value: "standard"
+            # Timezone
+            - name: TZ
+              value: "UTC"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pterodactyl
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/pterodactyl
+            - name: logs
+              mountPath: /var/log/pterodactyl
+            - name: tmp
+              mountPath: /tmp/pterodactyl
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000  # pterodactyl user
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /api/system
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/system
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: config
+          configMap:
+            name: wings-config
+        - name: data
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pterodactyl-wings
+  namespace: pterodactyl-servers
+  labels:
+    app: pterodactyl-wings
+    component: controller
+spec:
+  type: NodePort
+  selector:
+    app: pterodactyl-wings
+    component: controller
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+      # NodePort will be auto-assigned
+    - name: sftp
+      port: 2022
+      targetPort: sftp
+      protocol: TCP

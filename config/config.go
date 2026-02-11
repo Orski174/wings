@@ -343,9 +343,10 @@ type Configuration struct {
 	// validate against it.
 	AuthenticationToken string `json:"token" yaml:"token"`
 
-	Api    ApiConfiguration    `json:"api" yaml:"api"`
-	System SystemConfiguration `json:"system" yaml:"system"`
-	Docker DockerConfiguration `json:"docker" yaml:"docker"`
+	Api     ApiConfiguration     `json:"api" yaml:"api"`
+	System  SystemConfiguration  `json:"system" yaml:"system"`
+	Docker  DockerConfiguration  `json:"docker" yaml:"docker"`
+	Runtime RuntimeConfiguration `json:"runtime" yaml:"runtime"`
 
 	// Defines internal throttling configurations for server processes to prevent
 	// someone from running an endless loop that spams data to logs.
